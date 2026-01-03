@@ -27,7 +27,7 @@ env:
   ECR_REGISTRY: 002419998824.dkr.ecr.us-east-1.amazonaws.com
   IMAGE_REPO: devtools-backend
   HELM_CHART_REPO: helm-charts/devtools-playground
-  HELM_CHART_NAME: devtools-playground
+  HELM_CHART_NAME: devtools-playground-backend
   SONAR_ORG: sergioortiz17
   SONAR_PROJECT_KEY: sergioortiz17_devtools-backend
 
@@ -222,45 +222,23 @@ jobs:
           }
           echo "✅ Image verified in ECR"
 
-      - name: Check if release exists
-        id: check-release
-        run: |
-          if helm list -n devtools-playground -q | grep -q "^${{ env.HELM_CHART_NAME }}$"; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Release exists, will update only backend"
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Release does not exist, will install with full values"
-          fi
-
       - name: Deploy to EKS
         run: |
           echo "## 🚀 Deploying Backend to EKS" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Deploying with image tag: \`${{ steps.sha.outputs.short_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Release name: \`${{ env.HELM_CHART_NAME }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ "${{ steps.check-release.outputs.exists }}" == "true" ]; then
-            # Release existe: solo actualizar backend sin tocar frontend
-            echo "Updating existing release - only backend component"
-            helm upgrade ${{ env.HELM_CHART_NAME }} \
-              oci://${{ env.ECR_REGISTRY }}/${{ env.HELM_CHART_REPO }} \
-              --version 1.0.0 \
-              --namespace devtools-playground \
-              --reuse-values \
-              --set backend.enabled=true \
-              --set backend.image.tag=${{ steps.sha.outputs.short_sha }}
-          else
-            # Release no existe: instalar con valores completos
-            echo "Installing new release with full configuration"
-            helm install ${{ env.HELM_CHART_NAME }} \
-              oci://${{ env.ECR_REGISTRY }}/${{ env.HELM_CHART_REPO }} \
-              --version 1.0.0 \
-              --namespace devtools-playground \
-              --create-namespace \
-              --values helm/values-vn-dev.yaml \
-              --set backend.image.tag=${{ steps.sha.outputs.short_sha }}
-          fi
+          helm upgrade --install ${{ env.HELM_CHART_NAME }} \
+            oci://${{ env.ECR_REGISTRY }}/${{ env.HELM_CHART_REPO }} \
+            --version 1.0.0 \
+            --namespace devtools-playground \
+            --create-namespace \
+            --values helm/values-vn-dev.yaml \
+            --set backend.enabled=true \
+            --set backend.image.tag=${{ steps.sha.outputs.short_sha }} \
+            --set frontend.enabled=false
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "✅ Helm deployment command completed!" >> $GITHUB_STEP_SUMMARY

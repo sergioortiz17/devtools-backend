@@ -27,6 +27,12 @@ backend:
   env:
     PYTHONUNBUFFERED: "1"
     CORS_ORIGINS: "http://localhost:5173,http://localhost:3000,*"
+    # Database configuration - explicit to avoid hostname resolution issues
+    DB_HOST: "vn-dev-db.cilgeca4km3j.us-east-1.rds.amazonaws.com"
+    DB_PORT: "5432"
+    DB_NAME: "roadmapvndev"
+    DB_USER: "postgres"
+    # DB_PASSWORD will be set from the secret via the chart
   resources:
     requests:
       memory: "256Mi"
