@@ -222,15 +222,25 @@ jobs:
           }
           echo "✅ Image verified in ECR"
 
-      - name: Check if release exists
+      - name: Check if release exists and verify frontend
         id: check-release
         run: |
           if helm list -n devtools-playground -q | grep -q "^${{ env.HELM_CHART_NAME }}$"; then
             echo "exists=true" >> $GITHUB_OUTPUT
             echo "Release exists, will update only backend"
+            # Verificar si frontend está desplegado para preservarlo
+            if kubectl get deployment devtools-playground-frontend -n devtools-playground &>/dev/null || \
+               kubectl get deployment devtools-playground-frontend-frontend -n devtools-playground &>/dev/null; then
+              echo "frontend_deployed=true" >> $GITHUB_OUTPUT
+              echo "Frontend deployment detected, will preserve it"
+            else
+              echo "frontend_deployed=false" >> $GITHUB_OUTPUT
+              echo "No frontend deployment found"
+            fi
           else
             echo "exists=false" >> $GITHUB_OUTPUT
             echo "Release does not exist, will install with full values"
+            echo "frontend_deployed=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Deploy to EKS
@@ -241,15 +251,28 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ "${{ steps.check-release.outputs.exists }}" == "true" ]; then
-            # Release existe: solo actualizar backend sin tocar frontend
-            echo "Updating existing release - only backend component"
-            helm upgrade ${{ env.HELM_CHART_NAME }} \
+            # Release existe: actualizar backend preservando frontend
+            echo "Updating existing release - backend component (preserving frontend)"
+            
+            # Construir comando helm upgrade preservando frontend si está desplegado
+            UPGRADE_CMD="helm upgrade ${{ env.HELM_CHART_NAME }} \
               oci://${{ env.ECR_REGISTRY }}/${{ env.HELM_CHART_REPO }} \
               --version 1.0.0 \
               --namespace devtools-playground \
               --reuse-values \
               --set backend.enabled=true \
-              --set backend.image.tag=${{ steps.sha.outputs.short_sha }}
+              --set backend.image.tag=${{ steps.sha.outputs.short_sha }}"
+            
+            # Si frontend está desplegado, asegurarse de mantenerlo habilitado
+            if [ "${{ steps.check-release.outputs.frontend_deployed }}" == "true" ]; then
+              echo "Frontend is deployed, preserving it by explicitly enabling it..."
+              UPGRADE_CMD="$UPGRADE_CMD --set frontend.enabled=true"
+            else
+              echo "No frontend deployed, disabling it..."
+              UPGRADE_CMD="$UPGRADE_CMD --set frontend.enabled=false"
+            fi
+            
+            eval $UPGRADE_CMD
           else
             # Release no existe: instalar con valores completos
             echo "Installing new release with full configuration"
