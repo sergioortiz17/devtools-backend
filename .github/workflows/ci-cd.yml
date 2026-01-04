@@ -181,7 +181,7 @@ jobs:
             -Dsonar.github.repository=${{ github.repository }}
             -Dsonar.github.oauth=${{ secrets.GITHUB_TOKEN }}
             -Dsonar.branch.name=${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
-            -Dsonar.branch.target=${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
+            ${{ github.event_name == 'pull_request' && format('-Dsonar.branch.target={0}', github.base_ref) || '' }}
             -Dsonar.scanner.force-deprecated-java-version=true
 
   # Job 2: Build and push Docker image
