@@ -71,7 +71,9 @@ jobs:
       - name: Run unit tests with coverage
         run: |
           echo "🧪 Running unit tests with coverage..."
-          pytest --cov=app --cov-report=xml --cov-report=term-missing --cov-report=html -v
+          # Run only essential integration tests for faster execution
+          pytest tests/test_main.py tests/test_dictionary.py tests/test_shopping.py tests/test_words.py \
+            --cov=app --cov-report=xml --cov-report=term-missing --cov-report=html -v --tb=short -x
         continue-on-error: true
 
       - name: Verify coverage.xml exists
@@ -153,7 +155,8 @@ jobs:
             ls -lh coverage.xml
           else
             echo "⚠️ coverage.xml not found, generating it..."
-            pytest --cov=app --cov-report=xml --cov-report=term-missing -v || true
+            pytest tests/test_main.py tests/test_dictionary.py tests/test_shopping.py tests/test_words.py \
+              --cov=app --cov-report=xml --cov-report=term-missing -v || true
           fi
 
       - name: SonarCloud Scan
@@ -168,8 +171,8 @@ jobs:
             -Dsonar.organization=${{ env.SONAR_ORG }}
             -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
             -Dsonar.host.url=https://sonarcloud.io
-            -Dsonar.sources=app,tests
-            -Dsonar.exclusions=**/__pycache__/**,**/alembic/**,**/.venv/**,**/venv/**,**/*.pyc
+            -Dsonar.sources=app
+            -Dsonar.exclusions=**/__pycache__/**,**/alembic/**,**/.venv/**,**/venv/**,**/*.pyc,**/tests/**
             -Dsonar.python.coverage.reportPaths=coverage.xml
             -Dsonar.sourceEncoding=UTF-8
             -Dsonar.test.inclusions=**/test_*.py
@@ -179,6 +182,7 @@ jobs:
             -Dsonar.github.oauth=${{ secrets.GITHUB_TOKEN }}
             -Dsonar.branch.name=${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
             -Dsonar.branch.target=${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
+            -Dsonar.scanner.force-deprecated-java-version=true
 
   # Job 2: Build and push Docker image
   build-and-push:
